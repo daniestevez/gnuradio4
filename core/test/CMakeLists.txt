@@ -43,6 +43,7 @@ add_ut_test(qa_Tags)
 add_ut_test(qa_Messages)
 add_ut_test(qa_thread_affinity)
 add_ut_test(qa_thread_pool)
+add_ut_test(qa_leak_test)
 
 if (NOT NOPLUGINS)
     if (NOT EMSCRIPTEN)
