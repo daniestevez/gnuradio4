@@ -867,8 +867,14 @@ public:
                         }
                     } else if constexpr (std::remove_cvref_t<Port>::kIsOutput) {
                         if constexpr (std::remove_cvref_t<Port>::kIsSynch) {
+                            if (sync_samples == 0) {
+                                fmt::println("WARNING Block::prepareStreams() sync_samples == 0");
+                            }
                             return std::forward<Port>(port).template tryReserve<ProcessAll>(sync_samples);
                         } else {
+                            if (port.streamWriter().available() == 0) {
+                                fmt::println("WARNING Block::prepareStreams() port.streamWriter().available() == 0");
+                            }
                             return std::forward<Port>(port).template tryReserve<ProcessNone>(port.streamWriter().available());
                         }
                     }
@@ -1151,9 +1157,16 @@ protected:
             std::size_t maxAvailable = std::numeric_limits<std::size_t>::max(); // the maximum amount of that are available on all sync ports
             bool        hasAsync     = false;                                   // true if there is at least one async input/output that has available samples/remaining capacity
         } result;
-        auto adjustForInputPort = [&result]<PortLike Port>(Port& port) {
-            const std::size_t available = [&port]() {
+        auto adjustForInputPort = [this, &result]<PortLike Port>(Port& port) {
+            const std::size_t available = [this, &port]() {
                 if constexpr (gr::traits::port::is_input_v<Port>) {
+                    if (std::string(this->name).contains("CostasLoop")) {
+                        const auto available = port.streamReader().available();
+                        fmt::println("{} input available = {}", this->name, available);
+                        if (available > 1000000000) {
+                            exit(1);
+                        }
+                    }
                     return port.streamReader().available();
                 } else {
                     return port.streamWriter().available();
@@ -1530,6 +1543,10 @@ protected:
         work::Status userReturnStatus = ERROR; // default if nothing has been set
         std::size_t  processedIn      = limitByFirstTag ? 1UZ : resampledIn;
         std::size_t  processedOut     = limitByFirstTag ? 1UZ : resampledOut;
+        if (resampledIn == 0 || resampledOut == 0) {
+            fmt::println("WARNING {}::workInternal resampledIn = {}, resampledOut = {}, minSyncIn = {}, nextEosTag = {}, availableToProcess = {}, minSyncOut = {}, availableToPublish = {}, maxSyncIn = {}, maxSyncAvailableIn = {}, hasAsyncIn = {}, inputSkipBefore = {}, ensureMinimalDecimation = {}",
+                         this->name, resampledIn, resampledOut, minSyncIn, nextEosTag, availableToProcess, minSyncOut, availableToPublish, maxSyncIn, maxSyncAvailableIn, hasAsyncIn, inputSkipBefore, ensureMinimalDecimation);
+        }
         const auto   inputSpans       = prepareStreams(inputPorts<PortType::STREAM>(&self()), processedIn);
         auto         outputSpans      = prepareStreams(outputPorts<PortType::STREAM>(&self()), processedOut);
 
