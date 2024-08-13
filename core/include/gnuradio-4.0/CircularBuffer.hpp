@@ -288,6 +288,9 @@ class CircularBuffer {
 
         PublishableOutputRange() = delete;
         explicit PublishableOutputRange(Writer<U>* parent) noexcept : _parent(parent) {
+            if (_parent->_debug) {
+                fmt::println("WARNING: PublishableOutputRange(parent) setting _index and _offset to 0");
+            }
             _parent->_index        = 0UZ;
             _parent->_offset       = 0;
             _parent->_internalSpan = std::span<T>();
@@ -332,6 +335,10 @@ class CircularBuffer {
                     std::copy(&data[_parent->_index], &data[_parent->_index + nFirstHalf], &data[_parent->_index + size]);
                     std::copy(&data[size], &data[size + nSecondHalf], &data[0]);
                 }
+                if (_parent->_debug) {
+                    fmt::println("PublishableOutputRange calling _claimStrategy.publish({}, {})",
+                                 _parent->_offset, _parent->nSamplesPublished());
+                }          
                 _parent->_buffer->_claimStrategy.publish(_parent->_offset, _parent->nSamplesPublished());
                 _parent->_offset += static_cast<signed_index_type>(_parent->nSamplesPublished());
 #ifndef NDEBUG
@@ -402,6 +409,8 @@ class CircularBuffer {
         std::size_t       _rangesCounter{0};
 
     public:
+        bool _debug = false;
+        
         Writer() = delete;
         explicit Writer(std::shared_ptr<BufferImpl> buffer) noexcept : _buffer(std::move(buffer)) { _buffer->_writer_count.fetch_add(1UZ, std::memory_order_relaxed); };
 
@@ -436,6 +445,9 @@ class CircularBuffer {
 
         template<SpanReleasePolicy policy = SpanReleasePolicy::ProcessNone>
         [[nodiscard]] constexpr auto tryReserve(std::size_t nSamples) noexcept -> PublishableOutputRange<U, policy> {
+            if (_debug) {
+                fmt::println("Writer::tryReserve({}), _offset = {}", nSamples, _offset);
+            }
             checkIfCanReserveAndAbortIfNeeded();
             _isRangePublished  = false;
             _nSamplesPublished = 0UZ;
@@ -455,6 +467,9 @@ class CircularBuffer {
 
         template<SpanReleasePolicy policy = SpanReleasePolicy::ProcessNone>
         [[nodiscard]] constexpr auto reserve(std::size_t nSamples) noexcept -> PublishableOutputRange<U, policy> {
+            if (_debug) {
+                fmt::println("Writer::reserve({}), _offset = {}", nSamples, _offset);
+            }
             checkIfCanReserveAndAbortIfNeeded();
             _isRangePublished  = false;
             _nSamplesPublished = 0UZ;
@@ -517,7 +532,11 @@ class CircularBuffer {
 
         explicit ConsumableInputRange(const Reader<U>* parent) noexcept : _parent(parent) { _parent->_rangesCounter++; }
 
-        explicit constexpr ConsumableInputRange(const Reader<U>* parent, std::size_t index, std::size_t nRequested) noexcept : _parent(parent), _internalSpan({&_parent->_buffer->_data.data()[index], nRequested}) { _parent->_rangesCounter++; }
+        explicit constexpr ConsumableInputRange(const Reader<U>* parent, std::size_t index, std::size_t nRequested) noexcept : _parent(parent), _internalSpan({&_parent->_buffer->_data.data()[index], nRequested}) {
+            if (_parent->_debug) {
+                fmt::println("ConsumableInputRange(.., {}, {})", index, nRequested);
+            }
+            _parent->_rangesCounter++; }
 
         ConsumableInputRange(const ConsumableInputRange& other) : _parent(other._parent), _internalSpan(other._internalSpan) { _parent->_rangesCounter++; }
 
@@ -646,6 +665,8 @@ class CircularBuffer {
         }
 
     public:
+        bool _debug = false;
+        
         Reader() = delete;
         explicit Reader(std::shared_ptr<BufferImpl> buffer) noexcept : _buffer(buffer) {
             gr::detail::addSequences(_buffer->_claimStrategy._readSequences, _buffer->_claimStrategy._publishCursor, {_readIndex});
@@ -687,6 +708,10 @@ class CircularBuffer {
 
         template<SpanReleasePolicy policy = SpanReleasePolicy::ProcessNone>
         [[nodiscard]] constexpr auto get(const std::size_t nRequested = std::numeric_limits<std::size_t>::max()) const noexcept -> ConsumableInputRange<U, policy> {
+            if (_debug && nRequested > 1000000) {
+                fmt::println("Reader::get({})", nRequested);
+                __builtin_trap();
+            }
             if (isConsumeRequested()) {
                 assert(false && "An error occurred: The method CircularBuffer::Reader::get() was invoked after consume() methods was explicitly invoked.");
             }
@@ -708,7 +733,13 @@ class CircularBuffer {
 
         [[nodiscard]] constexpr signed_index_type position() const noexcept { return _readIndexCached; }
 
-        [[nodiscard]] constexpr std::size_t available() const noexcept { return static_cast<std::size_t>(_buffer->_claimStrategy._publishCursor.value() - _readIndexCached); }
+        [[nodiscard]] constexpr std::size_t available() const noexcept {
+            if (_debug) {
+                fmt::println("_buffer->_claimStrategy._publishCursor.value() = {}, _readIndexCached = {}, _readIndex->value() = {}", _buffer->_claimStrategy._publishCursor.value(), _readIndexCached, _readIndex->value());
+            }
+            const auto ret = static_cast<std::size_t>(_buffer->_claimStrategy._publishCursor.value() - _readIndexCached);            
+            return ret;
+        }
     }; // class Reader
     // static_assert(BufferReaderLike<Reader<T>>);
 

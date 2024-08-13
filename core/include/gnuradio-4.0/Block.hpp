@@ -931,6 +931,9 @@ public:
             if (available == 0UZ) {
                 return;
             }
+            if (available > 1000000) {
+                fmt::println("{} available = {}", this->name, available);
+            }
             ConsumableSpan auto inSpan = inPort.streamReader().get(available);
             if constexpr (traits::block::can_processMessagesForPortConsumableSpan<Derived, TPort>) {
                 self().processMessages(inPort, inSpan);
@@ -1163,6 +1166,10 @@ protected:
                 result.minSync      = std::max(result.minSync, port.min_samples);
                 result.maxSync      = std::min(result.maxSync, port.max_samples);
                 result.maxAvailable = std::min(result.maxAvailable, available);
+                if (result.maxAvailable > 1000000000) {
+                    fmt::println("getPortLimits() result.maxAvailable = {}, available = {}",
+                                 result.maxAvailable, available);
+                }
             } else {                                 // async port
                 if (available >= port.min_samples) { // ensure that process function is called if at least one async port has data available
                     result.hasAsync = true;
@@ -1530,6 +1537,9 @@ protected:
         work::Status userReturnStatus = ERROR; // default if nothing has been set
         std::size_t  processedIn      = limitByFirstTag ? 1UZ : resampledIn;
         std::size_t  processedOut     = limitByFirstTag ? 1UZ : resampledOut;
+        if (processedIn > 1000000000) {
+            fmt::println("{}::workInternal() processedIn = {}, availableToProcess = {}, maxSyncAvailableIn = {}", this->name, processedIn, availableToProcess, maxSyncAvailableIn);
+        }
         const auto   inputSpans       = prepareStreams(inputPorts<PortType::STREAM>(&self()), processedIn);
         auto         outputSpans      = prepareStreams(outputPorts<PortType::STREAM>(&self()), processedOut);
 

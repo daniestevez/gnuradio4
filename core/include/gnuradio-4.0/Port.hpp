@@ -375,8 +375,9 @@ struct Port {
     std::span<const Tag>   tags;          // Range of tags for the currently processed stream range; only used in input ports
     Tag::signed_index_type streamIndex{}; // Absolute offset of the first sample in the currently processed stream span; only used in input ports
 
-private:
+public:
     IoType    _ioHandler    = newIoHandler();
+private:
     TagIoType _tagIoHandler = newTagIoHandler();
     Tag       _cachedTag{}; // todo: for now this is only used in the output ports
 
@@ -585,6 +586,10 @@ public:
     ConsumablePortInputRange<spanReleasePolicy> get(std::size_t nSamples)
     requires(kIsInput)
     {
+        if (nSamples > 100000000) {
+            fmt::println("ConsumablePortInputRange::get({})", nSamples);
+            __builtin_trap();
+        }
         auto taggedStream = ConsumablePortInputRange<spanReleasePolicy>(nSamples, streamReader(), getTags(static_cast<gr::Tag::signed_index_type>(nSamples)), streamReader().position());
         tags              = std::span(taggedStream.tags.data(), taggedStream.tags.size());
         streamIndex       = streamReader().position();
