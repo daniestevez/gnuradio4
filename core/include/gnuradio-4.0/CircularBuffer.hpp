@@ -291,9 +291,9 @@ class CircularBuffer {
             if (_parent->_debug) {
                 fmt::println("WARNING: PublishableOutputRange(parent) setting _index and _offset to 0");
             }
-            _parent->_index        = 0UZ;
-            _parent->_offset       = 0;
-            _parent->_internalSpan = std::span<T>();
+            //_parent->_index        = 0UZ;
+            //_parent->_offset       = 0;
+            //_parent->_internalSpan = std::span<T>();
             _parent->_rangesCounter++;
         };
         explicit constexpr PublishableOutputRange(Writer<U>* parent, std::size_t index, signed_index_type sequence, std::size_t nSlotsToClaim) noexcept : _parent(parent) {
@@ -486,6 +486,9 @@ class CircularBuffer {
         [[nodiscard]] constexpr signed_index_type position() const noexcept { return _buffer->_claimStrategy._publishCursor.value(); }
         [[nodiscard]] constexpr std::size_t       available() const noexcept {
             const auto res = static_cast<std::size_t>(_buffer->_claimStrategy.getRemainingCapacity());
+            if (_debug) {
+                fmt::println("_buffer->_claimStrategy.getRemainingCapacity() = {}", res);
+            }
             return res;
         }
         [[nodiscard]] constexpr bool        isPublished() const noexcept { return _isRangePublished; }

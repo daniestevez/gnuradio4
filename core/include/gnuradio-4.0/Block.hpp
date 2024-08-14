@@ -867,8 +867,15 @@ public:
                         }
                     } else if constexpr (std::remove_cvref_t<Port>::kIsOutput) {
                         if constexpr (std::remove_cvref_t<Port>::kIsSynch) {
+                            if (sync_samples == 0) {
+                                fmt::println("prepareStreams() tryReserve(sync_samples = 0)");
+                            }
                             return std::forward<Port>(port).template tryReserve<ProcessAll>(sync_samples);
                         } else {
+                            const auto available = port.streamWriter().available();
+                            if (available == 0) {
+                                fmt::println("prepareStreams() tryReserved(available = 0)");
+                            }
                             return std::forward<Port>(port).template tryReserve<ProcessNone>(port.streamWriter().available());
                         }
                     }
@@ -1541,6 +1548,9 @@ protected:
             fmt::println("{}::workInternal() processedIn = {}, availableToProcess = {}, maxSyncAvailableIn = {}", this->name, processedIn, availableToProcess, maxSyncAvailableIn);
         }
         const auto   inputSpans       = prepareStreams(inputPorts<PortType::STREAM>(&self()), processedIn);
+        if (processedOut == 0) {
+            fmt::println("{}::workInternal() processedOut = 0, minSyncIn = {}, maxSyncIn = {}, maxSyncAvailableIn = {}, hasAsyncIn = {}", this->name, minSyncIn, maxSyncIn, maxSyncAvailableIn, hasAsyncIn);
+        }
         auto         outputSpans      = prepareStreams(outputPorts<PortType::STREAM>(&self()), processedOut);
 
         if (containsEmptyOutputSpans(outputSpans)) {
