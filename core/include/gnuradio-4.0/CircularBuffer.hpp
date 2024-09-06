@@ -285,15 +285,16 @@ class CircularBuffer {
         using iterator         = typename std::span<T>::iterator;
         using reverse_iterator = typename std::span<T>::reverse_iterator;
         using pointer          = typename std::span<T>::reverse_iterator;
+        bool _debug{false};
 
         PublishableOutputRange() = delete;
-        explicit PublishableOutputRange(Writer<U>* parent) noexcept : _parent(parent) {
+        explicit PublishableOutputRange(Writer<U>* parent) noexcept : _parent(parent), _debug(parent->_debug) {
             _parent->_index        = 0UZ;
             _parent->_offset       = 0;
             _parent->_internalSpan = std::span<T>();
             _parent->_rangesCounter++;
         };
-        explicit constexpr PublishableOutputRange(Writer<U>* parent, std::size_t index, signed_index_type sequence, std::size_t nSlotsToClaim) noexcept : _parent(parent) {
+        explicit constexpr PublishableOutputRange(Writer<U>* parent, std::size_t index, signed_index_type sequence, std::size_t nSlotsToClaim) noexcept : _parent(parent), _debug(parent->_debug) {
             _parent->_index        = index;
             _parent->_offset       = sequence - static_cast<signed_index_type>(nSlotsToClaim);
             _parent->_internalSpan = std::span<T>(&_parent->_buffer->_data.data()[index], nSlotsToClaim);
@@ -374,6 +375,9 @@ class CircularBuffer {
         [[nodiscard]] constexpr static SpanReleasePolicy spanReleasePolicy() noexcept { return policy; }
 
         constexpr void publish(std::size_t nSamplesToPublish) noexcept {
+            if (_debug) {
+                fmt::println("PublishableOutputRange::publish({})", nSamplesToPublish);                
+            }
             assert(nSamplesToPublish <= _parent->_internalSpan.size() - _parent->_nSamplesPublished && "n_produced must be <= than unpublished samples");
             _parent->_nSamplesPublished += nSamplesToPublish;
             _parent->_isRangePublished = true;
@@ -402,6 +406,8 @@ class CircularBuffer {
         std::size_t       _rangesCounter{0};
 
     public:
+        bool _debug{false};
+        
         Writer() = delete;
         explicit Writer(std::shared_ptr<BufferImpl> buffer) noexcept : _buffer(std::move(buffer)) { _buffer->_writer_count.fetch_add(1UZ, std::memory_order_relaxed); };
 
@@ -436,6 +442,9 @@ class CircularBuffer {
 
         template<SpanReleasePolicy policy = SpanReleasePolicy::ProcessNone>
         [[nodiscard]] constexpr auto tryReserve(std::size_t nSamples) noexcept -> PublishableOutputRange<U, policy> {
+            if (_debug) {
+                fmt::println("Writer::tryReserve({})", nSamples);
+            }
             checkIfCanReserveAndAbortIfNeeded();
             _isRangePublished  = false;
             _nSamplesPublished = 0UZ;
@@ -455,6 +464,9 @@ class CircularBuffer {
 
         template<SpanReleasePolicy policy = SpanReleasePolicy::ProcessNone>
         [[nodiscard]] constexpr auto reserve(std::size_t nSamples) noexcept -> PublishableOutputRange<U, policy> {
+            if (_debug) {
+                fmt::println("Writer::reserve({})", nSamples);
+            }
             checkIfCanReserveAndAbortIfNeeded();
             _isRangePublished  = false;
             _nSamplesPublished = 0UZ;
@@ -656,6 +668,8 @@ class CircularBuffer {
         }
 
     public:
+        bool _debug = false;
+        
         Reader() = delete;
         explicit Reader(std::shared_ptr<BufferImpl> buffer) noexcept : _buffer(buffer) {
             gr::detail::addSequences(_buffer->_claimStrategy._readSequences, _buffer->_claimStrategy._publishCursor, {_readIndex});
@@ -718,7 +732,13 @@ class CircularBuffer {
 
         [[nodiscard]] constexpr signed_index_type position() const noexcept { return _readIndexCached; }
 
-        [[nodiscard]] constexpr std::size_t available() const noexcept { return static_cast<std::size_t>(_buffer->_claimStrategy._publishCursor.value() - _readIndexCached); }
+        [[nodiscard]] constexpr std::size_t available() const noexcept {
+            const auto ret = static_cast<std::size_t>(_buffer->_claimStrategy._publishCursor.value() - _readIndexCached);
+            if (_debug) {
+                fmt::println("Reader::available() = {}", ret);
+            }
+            return ret;
+        }
     }; // class Reader
     // static_assert(BufferReaderLike<Reader<T>>);
 

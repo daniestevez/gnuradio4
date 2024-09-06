@@ -1495,6 +1495,9 @@ protected:
 
         // evaluate number of available and processable samples
         const auto [minSyncIn, maxSyncIn, maxSyncAvailableIn, hasAsyncIn]     = getPortLimits(inputPorts<PortType::STREAM>(&self()));
+        if (this->name == "gr::packet_modem::NullSink<int>") {
+            fmt::println("{} maxSyncAvailableIn = {}", this->name, maxSyncAvailableIn);
+        }
         const auto [minSyncOut, maxSyncOut, maxSyncAvailableOut, hasAsyncOut] = getPortLimits(outputPorts<PortType::STREAM>(&self()));
         auto [hasTag, nextTag, nextEosTag, asyncEoS]                          = getNextTagAndEosPosition();
         std::size_t maxChunk                                                  = getMergedBlockLimit(); // handle special cases for merged blocks. TODO: evaluate if/how we can get rid of these
