@@ -185,10 +185,21 @@ public:
     }
 
     void waitDone() {
+        const auto tid = std::this_thread::get_id();
+        fmt::println("[thread {}] scheduler_base.waitDone", tid);
         [[maybe_unused]] const auto pe = _profilerHandler.startCompleteEvent("scheduler_base.waitDone");
-        while (_nRunningJobs.load(std::memory_order_acquire) > 0UZ) {
+        while (true) {
+            const auto runningJobs = _nRunningJobs.load(std::memory_order_acquire);
+            fmt::println("[thread {}] runningJobs = {}", tid, runningJobs);
+            if (runningJobs == 0UZ) {
+                break;
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds(timeout_ms));
         }
+        fmt::println("[thread {}] scheduler_base.waitDone finished", tid);
+        // while (_nRunningJobs.load(std::memory_order_acquire) > 0UZ) {
+        //     std::this_thread::sleep_for(std::chrono::milliseconds(timeout_ms));
+        // }
     }
 
     [[nodiscard]] const JobLists& jobs() const noexcept { return _jobLists; }
@@ -203,6 +214,9 @@ protected:
             performedWorkAllBlocks += performed_work;
 
             if (status == work::Status::ERROR) {
+                const auto tid = std::this_thread::get_id();
+                fmt::println("[thread {}] currentBlock->work() returned ERROR: currentBlock->name() = {}",
+                             tid, currentBlock->name());
                 return {requested_work, performedWorkAllBlocks, work::Status::ERROR};
             } else if (status != work::Status::DONE) {
                 unfinishedBlocksExist = true;
@@ -250,6 +264,8 @@ protected:
     }
 
     void poolWorker(const std::size_t runnerID, std::shared_ptr<std::vector<std::vector<BlockModel*>>> jobList) noexcept {
+        const auto tid = std::this_thread::get_id();
+        fmt::println("[thread {}] about to increment _nRunningJobs", tid);
         _nRunningJobs.fetch_add(1UZ, std::memory_order_acq_rel);
         _nRunningJobs.notify_all();
 
@@ -264,6 +280,11 @@ protected:
                 localBlockList.push_back(block);
             }
         }
+        auto message = fmt::format("[thread {}] poolWorker() localBlockList:", tid);
+        for (const auto& block : localBlockList) {
+            message += fmt::format(" {}", block->name());
+        }
+        fmt::println("{}", message);
 
         [[maybe_unused]] auto currentProgress    = this->_graph.progress().value();
         gr::Size_t            inactiveCycleCount = 0U;
@@ -295,8 +316,10 @@ protected:
             if (activeState == lifecycle::State::RUNNING) {
                 gr::work::Result result = traverseBlockListOnce(localBlockList);
                 if (result.status == work::Status::DONE) {
+                    fmt::println("[thread {}] traverseBlockListOnce(localBlockList) returned DONE", tid);
                     break; // nothing happened -> shutdown this worker
                 } else if (result.status == work::Status::ERROR) {
+                    fmt::println("[thread {}] traverseBlockListOnce(localBlockList) returned ERROR", tid);
                     this->emitErrorMessageIfAny("LifecycleState (ERROR)", this->changeStateTo(lifecycle::State::ERROR));
                     break;
                 }
@@ -326,6 +349,7 @@ protected:
                 }
             }
         } while (lifecycle::isActive(activeState));
+        fmt::println("[thread {}] about to decrement _nRunningJobs", tid);
         _nRunningJobs.fetch_sub(1UZ, std::memory_order_acq_rel);
         _nRunningJobs.notify_all();
         waitDone(); // wait for the other workers to finish.

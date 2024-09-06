@@ -735,7 +735,11 @@ public:
                             if constexpr (In::spanReleasePolicy() == Terminate) {
                                 std::abort();
                             } else if constexpr (In::spanReleasePolicy() == ProcessAll) {
-                                success = success && in.consume(nSamples);
+                                const auto ret = in.consume(nSamples);
+                                if (!ret) {
+                                    fmt::println("consumeReaders() in.consume({}) = {}", nSamples, ret);
+                                }
+                                success = success && ret;
                             } else if constexpr (In::spanReleasePolicy() == ProcessNone) {
                                 success = success && in.consume(0U);
                             }
@@ -1570,6 +1574,7 @@ protected:
                 outputSpans);
         } else if constexpr (HasProcessOneFunction<Derived>) {
             if (processedIn != processedOut) {
+                fmt::println("{}::processBulk() N input samples ({}) does not equal to N output samples ({}) for processOne() method.", this->name, resampledIn, resampledOut);
                 emitErrorMessage("Block::workInternal:", fmt::format("N input samples ({}) does not equal to N output samples ({}) for processOne() method.", resampledIn, resampledOut));
                 requestStop();
                 processedIn  = 0;
@@ -1602,6 +1607,10 @@ protected:
             static_assert(meta::always_false<traits::block::stream_input_port_types_tuple<Derived>>, "neither processBulk(...) nor processOne(...) implemented");
         }
 
+        if (userReturnStatus == ERROR) {
+            fmt::println("{}::workInternal() user-provided process function just returned ERROR", this->name);
+        }
+
         // sanitise input/output samples based on explicit user-defined processBulk(...) return status
         if (userReturnStatus == INSUFFICIENT_OUTPUT_ITEMS || userReturnStatus == INSUFFICIENT_INPUT_ITEMS || userReturnStatus == ERROR) {
             processedIn  = 0UZ;
@@ -1626,10 +1635,12 @@ protected:
             const auto inputSamplesToConsume = inputSamplesToConsumeAdjustedWithStride(resampledIn);
             if (inputSamplesToConsume > 0) {
                 if (!consumeReaders(inputSamplesToConsume, inputSpans)) {
+                    fmt::println("{} consumeReaders(inputSamplesToConsume = {}, inputSpans) failed", this->name, inputSamplesToConsume);
                     userReturnStatus = ERROR;
                 }
             } else {
                 if (!consumeReaders(processedIn, inputSpans)) {
+                    fmt::println("{} consumeReaders(processedIn = {}, inputSpans) failed", this->name, processedIn);
                     userReturnStatus = ERROR;
                 }
             }
@@ -1662,6 +1673,9 @@ protected:
             if constexpr (blockingIO) {
                 progress->notify_all();
             }
+        }
+        if (userReturnStatus == ERROR) {
+            fmt::println("{}::workInternal() about to return ERROR", this->name);
         }
         return {requested_work, performedWork, userReturnStatus};
     } // end: work::Result workInternal(std::size_t requested_work) { ... }

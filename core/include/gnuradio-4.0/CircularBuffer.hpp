@@ -582,16 +582,26 @@ class CircularBuffer {
             if (isConsumeRequested()) {
                 assert(false && "An error occurred: The method CircularBuffer::ConsumableInputRange::consume() was invoked for the second time in succession, a corresponding ConsumableInputRange was already consumed.");
             }
-            return tryConsume<strict_check>(nSamples);
+            const auto ret = tryConsume<strict_check>(nSamples);
+            if (!ret) {
+                fmt::println("ConsumableInputRange::consume({}) = {}", nSamples, ret);
+            }
+            return ret;
         }
 
         template<bool strict_check = true>
         [[nodiscard]] bool tryConsume(std::size_t nSamples) const noexcept {
             if (isConsumeRequested()) {
+                fmt::println("ConsumableInputRange::tryConsume({}) isConsumeRequested() = true", nSamples);
                 return false;
             }
             if constexpr (strict_check) {
-                if (nSamples > _parent->available()) {
+                const auto available = _parent->available();
+                if (nSamples > available) {
+                    fmt::println("ConsumableInputRange::tryConsume({}) nSamples > _parent->available() (= {})", nSamples, available);
+                    fmt::println("_parent->_buffer->_claimStrategy._publishCursor.value() = {}, _parent->_readIndexCached = {}",
+                                 _parent->_buffer->_claimStrategy._publishCursor.value(),
+                                 _parent->_readIndexCached);
                     return false;
                 }
             }
