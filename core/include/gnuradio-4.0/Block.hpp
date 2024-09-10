@@ -1513,6 +1513,16 @@ protected:
         const auto  nextTagLimit                                              = (nextTag - inputSkipBefore) >= minSyncIn ? (nextTag - inputSkipBefore) : std::numeric_limits<std::size_t>::max();
         const auto  ensureMinimalDecimation                                   = nextTagLimit >= input_chunk_size ? nextTagLimit : static_cast<long unsigned int>(input_chunk_size); // ensure to process at least one input_chunk_size (may shift tags)
         const auto  availableToProcess                                        = std::min({maxSyncIn, maxChunk, (maxSyncAvailableIn - inputSkipBefore), ensureMinimalDecimation, (nextEosTag - inputSkipBefore)});
+        if (availableToProcess > 0 && std::string(this->name).contains(std::string("HeaderPayloadSplit<std::__1::complex<float>>"))) {
+            fmt::println("{} availableToProcess = {}, hasTag = {}, nextTag = {}, nextEosTag = {}, asyncEoS = {}", this->name, availableToProcess, hasTag, nextTag, nextEosTag, asyncEoS);
+            for_each_port([](PortLike auto& port) {
+                const gr::ConsumableSpan auto tagData = port.tagReader().get();                
+                fmt::println("{} tagData.empty() = {}, port.streamReader().position() = {}", port.name, tagData.empty(), port.streamReader().position());
+                for (size_t j = 0; j < tagData.size(); ++j) {
+                    fmt::println("{} tagData[{}].index = {}, tagData[{}].map = {}", port.name, j, tagData[j].index, j, tagData[j].map);
+                }
+            }, inputPorts<PortType::STREAM>(&self()));
+        }
         const auto  availableToPublish                                        = std::min({maxSyncOut, maxSyncAvailableOut});
         auto [resampledIn, resampledOut, resampledStatus]                     = computeResampling(std::min(minSyncIn, nextEosTag), availableToProcess, minSyncOut, availableToPublish, requestedWork);
         const auto nextEosTagSkipBefore                                       = nextEosTag - inputSkipBefore;
