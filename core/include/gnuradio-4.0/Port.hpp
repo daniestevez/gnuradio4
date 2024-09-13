@@ -358,8 +358,9 @@ struct Port {
                     return; // no samples to be consumed -> do not consume any tags
                 }
                 std::size_t tagsToConsume = 0;
+                const Tag::signed_index_type toConsume = static_cast<Tag::signed_index_type>(ReaderSpanType<spanReleasePolicy>::toConsume());
                 for (auto& t : tags) {
-                    if (t.index <= streamIndex) {
+                    if (t.index < streamIndex + toConsume) {
                         tagsToConsume++;
                     } else {
                         break;

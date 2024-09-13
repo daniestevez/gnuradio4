@@ -531,17 +531,21 @@ class CircularBuffer {
             _parent->_rangesCounter--;
 
             if (_parent->_rangesCounter == 0) {
-                if (_parent->isConsumeRequested()) {
-                    std::ignore = performConsume(_parent->_nSamplesToConsume);
-                } else {
-                    if constexpr (spanReleasePolicy() == SpanReleasePolicy::Terminate) {
-                        assert(false && "CircularBuffer::ConsumableInputRange() - omitted consume() call for SpanReleasePolicy::Terminate");
-                        std::abort();
-                    } else if constexpr (spanReleasePolicy() == SpanReleasePolicy::ProcessAll) {
-                        std::ignore = performConsume(_parent->_nSamplesFirstGet);
-                    } else if constexpr (spanReleasePolicy() == SpanReleasePolicy::ProcessNone) {
-                        std::ignore = performConsume(0UZ);
-                    }
+                std::ignore = performConsume(toConsume());
+            }
+        }
+
+        constexpr std::size_t toConsume() {
+            if (_parent->isConsumeRequested()) {
+                return _parent->_nSamplesToConsume;
+            } else {
+                if constexpr (spanReleasePolicy() == SpanReleasePolicy::Terminate) {
+                    assert(false && "CircularBuffer::ConsumableInputRange() - omitted consume() call for SpanReleasePolicy::Terminate");
+                    std::abort();
+                } else if constexpr (spanReleasePolicy() == SpanReleasePolicy::ProcessAll) {
+                    return _parent->_nSamplesFirstGet;
+                } else if constexpr (spanReleasePolicy() == SpanReleasePolicy::ProcessNone) {
+                    return 0UZ;
                 }
             }
         }
