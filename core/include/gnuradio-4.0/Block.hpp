@@ -2010,6 +2010,19 @@ template<BlockLike TBlock>
 
 namespace detail {
 
+template<typename T>
+struct is_complex {
+    static constexpr bool value = false;
+};
+
+template<typename T>
+struct is_complex<std::complex<T>> {
+    static constexpr bool value = true;
+};
+
+template<typename T>
+constexpr bool is_complex_v = is_complex<T>::value;
+
 template<typename Type>
 std::string reflFirstTypeName() {
     //
@@ -2024,6 +2037,8 @@ std::string reflFirstTypeName() {
         return fmt::format("gr::DataSet<{}>", reflFirstTypeName<typename Type::value_type>());
     } else if constexpr (UncertainValueLike<Type>) {
         return fmt::format("gr::UncertainValue<{}>", reflFirstTypeName<typename Type::value_type>());
+    } else if constexpr (is_complex_v<Type>) {
+        return fmt::format("std::complex<{}>", reflFirstTypeName<typename Type::value_type>());
     } else if constexpr (refl::is_reflectable<Type>()) {
         return refl::reflect<Type>().name.str();
 
