@@ -137,13 +137,13 @@ string(
           "${ALL_COMPILER_FLAGS}")
 
 if(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang") # set default C++ STL to Clang's libc++ when using Clang
-  add_compile_options(-stdlib=libc++)
+  #add_compile_options(-stdlib=libc++)
   if(TIMETRACE)
     add_compile_options(-ftime-trace)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -ftime-trace")
     message(STATUS "Enable TIMETRACE: ${TIMETRACE}")
   endif()
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -lc++")
+  #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++ -lc++")
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   if(ENABLE_TBB)
     find_package(TBB REQUIRED)
@@ -321,9 +321,10 @@ if(EMSCRIPTEN)
       --silent
       V=0)
 else()
-  set(FFTW_CFLAGS "${CFLAGS} -fPIC -w -O3 -march=native -mtune=native")
+  set(FFTW_CFLAGS "${CFLAGS} -fPIC -w -O3 -target aarch64-unknown-linux -march=armv8-a -mtune=cortex-a53 --sysroot=/sysroot -fuse-ld=lld")
   set(FFTW_CONFIG
       ${FFTW_PREFIX}/src/configure
+      --host aarch64-unknown-linux
       --enable-silent-rules
       --quiet
       --disable-fortran
@@ -345,7 +346,10 @@ else()
       --silent
       V=0)
 endif()
-set(FFTW_INSTALL_COMMAND ${FFTW_CONFIG} && ${FFTW_BUILD} && ${FFTW_CONFIG} --enable-float && ${FFTW_BUILD})
+set(FFTW_INSTALL_COMMAND
+  ${CMAKE_COMMAND} -E env CC=clang-19 CXX=clang++-19 ${FFTW_CONFIG}
+  && ${FFTW_BUILD} &&
+  ${CMAKE_COMMAND} -E env CC=clang-19 CXX=clang++-19 ${FFTW_CONFIG} --enable-float && ${FFTW_BUILD})
 
 include(ExternalProject)
 ExternalProject_Add(
